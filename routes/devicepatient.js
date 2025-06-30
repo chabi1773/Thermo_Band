@@ -7,7 +7,7 @@ router.get('/:patientId', async (req, res) => {
   try {
     const patientCheck = await db.query(
       'SELECT 1 FROM Patient WHERE PatientID = $1 AND UserID = $2',
-      [patientId, req.user.id]
+      [patientId, userId]
     );
     if (patientCheck.rows.length === 0) {
       return res.status(403).json({ error: 'Unauthorized access to patient device info' });
