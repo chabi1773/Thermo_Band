@@ -37,5 +37,14 @@ router.post('/add-temperature', async (req, res) => {
     res.status(500).json({ error: 'Failed to add temperature' });
   }
 });
+router.get('/test-users', async (req, res) => {
+  try {
+    const result = await db.query('SELECT "UserID", "Username" FROM "AppUser" LIMIT 5');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching AppUser:', err);
+    res.status(500).json({ error: 'Failed to fetch AppUser' });
+  }
+});
 
 module.exports = router;
