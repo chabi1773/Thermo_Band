@@ -76,4 +76,45 @@ router.get("/test-users", async (req, res) => {
   }
 });
 
+router.post("/assign-device-to-patient", async (req, res) => {
+  const { patientId, macAddress } = req.body;
+
+  if (!patientId || !macAddress) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    // Check if patient exists
+    const patientCheck = await db.query(
+      "SELECT 1 FROM Patient WHERE PatientID = $1",
+      [patientId]
+    );
+    if (patientCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Patient not found" });
+    }
+
+    // Check if device exists
+    const deviceCheck = await db.query(
+      "SELECT 1 FROM Device WHERE MacAddress = $1",
+      [macAddress]
+    );
+    if (deviceCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Device not found" });
+    }
+
+    // Insert into DevicePatient
+    await db.query(
+      "INSERT INTO DevicePatient (MacAddress, PatientID) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      [macAddress, patientId]
+    );
+
+  
+
+    res.status(201).json({ message: "Device assigned to patient successfully" });
+  } catch (err) {
+    console.error("Error assigning device to patient:", err);
+    res.status(500).json({ error: "Failed to assign device to patient" });
+  }
+});
+
 module.exports = router;
