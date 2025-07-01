@@ -99,29 +99,30 @@ router.post("/assign-device-to-patient", async (req, res) => {
       return res.status(404).json({ error: "Patient not found" });
     }
 
-    // Check if device exists
+    // Check if device is registered in DevicePatient (as unassigned)
     const deviceCheck = await db.query(
-      "SELECT 1 FROM Device WHERE MacAddress = $1",
+      "SELECT 1 FROM DevicePatient WHERE MacAddress = $1",
       [macAddress]
     );
     if (deviceCheck.rows.length === 0) {
-      return res.status(404).json({ error: "Device not found" });
+      return res.status(404).json({ error: "Device not registered" });
     }
 
     // Check if device is already assigned to any patient
     const assignedCheck = await db.query(
-      "SELECT 1 FROM DevicePatient WHERE MacAddress = $1",
+      "SELECT 1 FROM DevicePatient WHERE MacAddress = $1 AND PatientID IS NOT NULL",
       [macAddress]
     );
     if (assignedCheck.rows.length > 0) {
       return res.status(400).json({ error: "Device already assigned to a patient" });
     }
 
-    // Assign device to patient
+    // Assign device to patient (update the existing row)
     await db.query(
-      `INSERT INTO DevicePatient (MacAddress, PatientID)
-       VALUES ($1, $2)`,
-      [macAddress, patientId]
+      `UPDATE DevicePatient
+       SET PatientID = $1
+       WHERE MacAddress = $2`,
+      [patientId, macAddress]
     );
 
     // Return assigned mac address
