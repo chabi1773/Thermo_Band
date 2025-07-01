@@ -1,6 +1,5 @@
-//mona huttakda bn
 
-const express = require("express");
+const express = require('express');
 const router = express.Router();
 const db = require("../db");
 
@@ -8,7 +7,9 @@ router.post("/add-patient", async (req, res) => {
   const { userId, name, age } = req.body;
   if (!userId || !name || !age) {
     return res.status(400).json({ error: "Missing required fields" });
+
   }
+
   try {
     const result = await db.query(
       "INSERT INTO Patient (UserID, Name, Age) VALUES ($1, $2, $3) RETURNING *",
@@ -26,7 +27,9 @@ router.post("/add-temperature", async (req, res) => {
   console.log(macAddress, temperature);
   if (macAddress === undefined || temperature === undefined) {
     return res.status(400).json({ error: "Missing required fields" });
+
   }
+
   try {
     const result = await db.query(
       "SELECT * FROM log_device_temperature($1, $2);",
@@ -70,6 +73,7 @@ router.get("/test-users", async (req, res) => {
   } catch (err) {
     console.error("Error fetching AppUser:", err);
     res.status(500).json({ error: "Failed to fetch AppUser" });
+
   }
 });
 
