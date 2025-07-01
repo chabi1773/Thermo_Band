@@ -4,6 +4,11 @@ const db = require('../db');
 const { validate: isUuid } = require('uuid');
 
 router.get('/', async (req, res) => {
+  const userId = req.user.sub || req.user.user_id || req.user.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
+
   try {
     const result = await db.query(
       `SELECT dt.Temperature, dt.DateTime, dt.PatientID, p.Name
@@ -11,7 +16,7 @@ router.get('/', async (req, res) => {
        JOIN Patient p ON dt.PatientID = p.PatientID
        WHERE p.UserID = $1
        ORDER BY dt.DateTime ASC`,
-      [req.user.id]
+      [userId]
     );
     res.json(result.rows);
   } catch (err) {
@@ -21,10 +26,16 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/:patientId', async (req, res) => {
+  const userId = req.user.sub || req.user.user_id || req.user.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
+
   const { patientId } = req.params;
   if (!isUuid(patientId)) {
     return res.status(400).json({ error: 'Invalid patient ID format' });
   }
+
   try {
     const patient = await db.query(
       'SELECT UserID FROM Patient WHERE PatientID = $1',
@@ -33,7 +44,7 @@ router.get('/:patientId', async (req, res) => {
     if (patient.rows.length === 0) {
       return res.status(404).json({ error: 'Patient not found' });
     }
-    if (patient.rows[0].userid !== req.user.id) {
+    if (patient.rows[0].userid !== userId) {
       return res.status(403).json({ error: 'Unauthorized access to patient data' });
     }
 
