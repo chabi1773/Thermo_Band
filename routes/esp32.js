@@ -1,15 +1,14 @@
-
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 const db = require("../db");
+
+const interval = 300;
 
 router.post("/add-patient", async (req, res) => {
   const { userId, name, age } = req.body;
   if (!userId || !name || !age) {
     return res.status(400).json({ error: "Missing required fields" });
-
   }
-
   try {
     const result = await db.query(
       "INSERT INTO Patient (UserID, Name, Age) VALUES ($1, $2, $3) RETURNING *",
@@ -26,7 +25,6 @@ router.post("/add-temperature", async (req, res) => {
   const { macAddress, temperature } = req.body;
   if (macAddress === undefined || temperature === undefined) {
     return res.status(400).json({ error: "Missing required fields" });
-
   }
 
   try {
@@ -34,12 +32,19 @@ router.post("/add-temperature", async (req, res) => {
       "SELECT * FROM log_device_temperature($1, $2);",
       [macAddress, temperature]
     );
-    res
-      .status(201)
-      .json({ message: "Temperature recorded", tempRecord: result.rows[0] });
+    res.status(201).json({
+      message: "Temperature recorded",
+      tempRecord: result.rows[0],
+      reset: false,
+      interval: interval,
+    });
   } catch (err) {
     console.error("Error adding temperature:", err);
-    res.status(500).json({ error: "Failed to add temperature" });
+    res.status(500).json({
+      error: "Failed to add temperature",
+      reset: false,
+      interval: interval,
+    });
   }
 });
 
@@ -54,18 +59,25 @@ router.post("/register-device", async (req, res) => {
       "SELECT * FROM assign_device_to_user($1, $2);",
       [macAddress, uid]
     );
-    let msg = "Device Registered"
+    let msg = "Device Registered";
     if (result.rows[0].assign_device_to_user === 1) {
-      msg="Device already registered"
+      msg = "Device already registered";
     } else if (result.rows[0].assign_device_to_user === -1) {
-      msg="Device belong to another user"
+      msg = "Device belong to another user";
     }
-    res
-      .status(201)
-      .json({ message: msg, tempRecord: result.rows[0] });
+    res.status(201).json({
+      message: msg,
+      DeviceRegister: result.rows[0],
+      reset: false,
+      interval: interval,
+    });
   } catch (err) {
     console.error("Error registering device:", err);
-    res.status(500).json({ error: "Failed to register device" });
+    res.status(500).json({
+      error: "Failed to register device",
+      reset: false,
+      interval: interval,
+    });
   }
 });
 
@@ -78,7 +90,6 @@ router.get("/test-users", async (req, res) => {
   } catch (err) {
     console.error("Error fetching AppUser:", err);
     res.status(500).json({ error: "Failed to fetch AppUser" });
-
   }
 });
 
@@ -114,7 +125,9 @@ router.post("/assign-device-to-patient", async (req, res) => {
       [macAddress]
     );
     if (assignedCheck.rows.length > 0) {
-      return res.status(400).json({ error: "Device already assigned to a patient" });
+      return res
+        .status(400)
+        .json({ error: "Device already assigned to a patient" });
     }
 
     // Assign device to patient
@@ -127,7 +140,7 @@ router.post("/assign-device-to-patient", async (req, res) => {
     // Return assigned mac address
     res.status(201).json({
       message: "Device assigned to patient successfully",
-      assigned: { macAddress }
+      assigned: { macAddress },
     });
   } catch (err) {
     console.error("Error assigning device to patient:", err);
