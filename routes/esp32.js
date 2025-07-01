@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 
-const interval = 300;
+let interval = 300;
 
 router.post("/add-patient", async (req, res) => {
   const { userId, name, age } = req.body;
@@ -32,19 +32,52 @@ router.post("/add-temperature", async (req, res) => {
       "SELECT * FROM log_device_temperature($1, $2);",
       [macAddress, temperature]
     );
+
+    // Fetch interval from DevicePatient table
+    const intervalResult = await db.query(
+      "SELECT IntervalSeconds FROM DevicePatient WHERE MacAddress = $1",
+      [macAddress]
+    );
+
+    let deviceInterval = 300; // default interval
+    if (intervalResult.rows.length > 0 && intervalResult.rows[0].intervalseconds) {
+      deviceInterval = intervalResult.rows[0].intervalseconds;
+    }
+
     res.status(201).json({
       message: "Temperature recorded",
       tempRecord: result.rows[0],
       reset: false,
-      interval: interval,
+      interval: deviceInterval,
     });
   } catch (err) {
     console.error("Error adding temperature:", err);
-    res.status(500).json({
-      error: "Failed to add temperature",
-      reset: false,
-      interval: interval,
-    });
+
+    // Try to still fetch interval if possible
+    try {
+      const intervalResult = await db.query(
+        "SELECT IntervalSeconds FROM DevicePatient WHERE MacAddress = $1",
+        [macAddress]
+      );
+
+      let deviceInterval = 300; // default interval
+      if (intervalResult.rows.length > 0 && intervalResult.rows[0].intervalseconds) {
+        deviceInterval = intervalResult.rows[0].intervalseconds;
+      }
+
+      return res.status(500).json({
+        error: "Failed to add temperature",
+        reset: false,
+        interval: deviceInterval,
+      });
+    } catch {
+      // fallback if even interval fetch fails
+      return res.status(500).json({
+        error: "Failed to add temperature",
+        reset: false,
+        interval: 300,
+      });
+    }
   }
 });
 
@@ -81,15 +114,31 @@ router.post("/register-device", async (req, res) => {
   }
 });
 
-router.get("/test-users", async (req, res) => {
+router.post("/set-interval", async (req, res) => {
+  const { macAddress, interval } = req.body;
+
+  if (!macAddress || !interval || isNaN(interval)) {
+    return res.status(400).json({ error: "Missing or invalid fields" });
+  }
+
   try {
     const result = await db.query(
-      'SELECT "UserID", "Username" FROM "AppUser" LIMIT 5'
+      "UPDATE DevicePatient SET IntervalSeconds = $1 WHERE MacAddress = $2 RETURNING *",
+      [interval, macAddress]
     );
-    res.json(result.rows);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Device not assigned to any patient" });
+    }
+
+    res.status(200).json({
+      message: "Interval updated successfully",
+      macAddress,
+      interval,
+    });
   } catch (err) {
-    console.error("Error fetching AppUser:", err);
-    res.status(500).json({ error: "Failed to fetch AppUser" });
+    console.error("Error updating interval:", err);
+    res.status(500).json({ error: "Failed to update interval" });
   }
 });
 
