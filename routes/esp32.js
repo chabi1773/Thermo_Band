@@ -54,9 +54,15 @@ router.post("/register-device", async (req, res) => {
       "SELECT * FROM assign_device_to_user($1, $2);",
       [macAddress, uid]
     );
+    let msg = "Device Registered"
+    if (result.rows[0].assign_device_to_user === 1) {
+      msg="Device already registered"
+    } else if (result.rows[0].assign_device_to_user === -1) {
+      msg="Device belong to another user"
+    }
     res
       .status(201)
-      .json({ message: "Device Registered", tempRecord: result.rows[0] });
+      .json({ message: msg, tempRecord: result.rows[0] });
   } catch (err) {
     console.error("Error registering device:", err);
     res.status(500).json({ error: "Failed to register device" });
