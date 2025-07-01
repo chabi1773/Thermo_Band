@@ -117,4 +117,24 @@ router.post("/assign-device-to-patient", async (req, res) => {
   }
 });
 
+router.get("/user-devices/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const result = await db.query(
+      `SELECT DISTINCT d.MacAddress
+       FROM Device d
+       JOIN DevicePatient dp ON d.MacAddress = dp.MacAddress
+       JOIN Patient p ON dp.PatientID = p.PatientID
+       WHERE p.UserID = $1`,
+      [userId]
+    );
+
+    res.status(200).json({ devices: result.rows });
+  } catch (err) {
+    console.error("Error fetching user devices:", err);
+    res.status(500).json({ error: "Failed to fetch devices" });
+  }
+});
+
 module.exports = router;
