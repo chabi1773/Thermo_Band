@@ -14,7 +14,7 @@ const db = require('../db');
   //next();
 //};
 
-router.post('/send-temperature', verifyApiKey, async (req, res) => {
+router.post('/send-temperature',  async (req, res) => { //VERIFY API KEY WAS HERE
   const { macAddress, temperature } = req.body;
 
   if (!macAddress || temperature === undefined) {
@@ -46,7 +46,7 @@ router.post('/send-temperature', verifyApiKey, async (req, res) => {
 });
 
 // Add patient without macAddress
-router.post('/add-patient', verifyApiKey, async (req, res) => {
+router.post('/add-patient', async (req, res) => { //HERE TOO
   const { userId, name, age } = req.body;
 
   if (!userId || !name || !age) {
