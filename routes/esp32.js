@@ -101,45 +101,37 @@ router.post("/assign-device-to-patient", async (req, res) => {
 
     // Check if device exists
     const deviceCheck = await db.query(
-      "SELECT 1 FROM Device WHERE LOWER(MacAddress) = LOWER($1)",
+      "SELECT 1 FROM Device WHERE MacAddress = $1",
       [macAddress]
     );
     if (deviceCheck.rows.length === 0) {
       return res.status(404).json({ error: "Device not found" });
     }
 
-    // Insert into DevicePatient
+    // Check if device is already assigned to any patient
+    const assignedCheck = await db.query(
+      "SELECT 1 FROM DevicePatient WHERE MacAddress = $1",
+      [macAddress]
+    );
+    if (assignedCheck.rows.length > 0) {
+      return res.status(400).json({ error: "Device already assigned to a patient" });
+    }
+
+    // Assign device to patient
     await db.query(
-      "INSERT INTO DevicePatient (MacAddress, PatientID) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      `INSERT INTO DevicePatient (MacAddress, PatientID)
+       VALUES ($1, $2)`,
       [macAddress, patientId]
     );
 
-  
-
-    res.status(201).json({ message: "Device assigned to patient successfully" });
+    // Return assigned mac address
+    res.status(201).json({
+      message: "Device assigned to patient successfully",
+      assigned: { macAddress }
+    });
   } catch (err) {
     console.error("Error assigning device to patient:", err);
     res.status(500).json({ error: "Failed to assign device to patient" });
-  }
-});
-
-router.get("/user-devices/:userId", async (req, res) => {
-  const { userId } = req.params;
-
-  try {
-    const result = await db.query(
-      `SELECT DISTINCT d.MacAddress
-       FROM Device d
-       JOIN DevicePatient dp ON d.MacAddress = dp.MacAddress
-       JOIN Patient p ON dp.PatientID = p.PatientID
-       WHERE p.UserID = $1`,
-      [userId]
-    );
-
-    res.status(200).json({ devices: result.rows });
-  } catch (err) {
-    console.error("Error fetching user devices:", err);
-    res.status(500).json({ error: "Failed to fetch devices" });
   }
 });
 
