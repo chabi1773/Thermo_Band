@@ -95,7 +95,7 @@ router.post("/assign-device-to-patient", async (req, res) => {
 
     // Check if device exists
     const deviceCheck = await db.query(
-      "SELECT 1 FROM Device WHERE MacAddress = $1",
+      "SELECT 1 FROM Device WHERE LOWER(MacAddress) = LLOWER($1)",
       [macAddress]
     );
     if (deviceCheck.rows.length === 0) {
