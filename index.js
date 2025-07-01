@@ -15,7 +15,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("Health Monitoring Backend API is running");
+  res.send({"message":"Health Monitoring Backend API is running"});
 });
 
 // ✅ Auth middleware

@@ -24,7 +24,6 @@ router.post("/add-patient", async (req, res) => {
 
 router.post("/add-temperature", async (req, res) => {
   const { macAddress, temperature } = req.body;
-  console.log(macAddress, temperature);
   if (macAddress === undefined || temperature === undefined) {
     return res.status(400).json({ error: "Missing required fields" });
 

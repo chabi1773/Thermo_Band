@@ -10,7 +10,6 @@ router.get("/", async (req, res) => {
   }
 
   try {
-    console.log("Authenticated userId:", userId);
     const result = await db.query(
       "SELECT PatientID, Name, Age FROM Patient WHERE UserID = $1",
       [userId]
