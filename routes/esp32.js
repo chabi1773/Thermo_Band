@@ -28,6 +28,14 @@ router.post("/add-temperature", async (req, res) => {
   }
 
   try {
+          const deviceCheck = await db.query(
+        "SELECT 1 FROM DevicePatient WHERE MacAddress = $1",
+        [macAddress]
+      );
+      
+      if (deviceCheck.rows.length === 0) {
+        return res.status(404).json({ error: "DevicePatient row not found — please reassign device." });
+      }
     const result = await db.query(
       "SELECT * FROM log_device_temperature($1, $2);",
       [macAddress, temperature]
@@ -40,8 +48,8 @@ router.post("/add-temperature", async (req, res) => {
     );
 
     let deviceInterval = 300; // default interval
-    if (intervalResult.rows.length > 0 && intervalResult.rows[0].intervalseconds) {
-      deviceInterval = intervalResult.rows[0].intervalseconds;
+    if (intervalResult.rows.length > 0 && intervalResult.rows[0].interval) {
+      deviceInterval = intervalResult.rows[0].interval;
     }
 
     res.status(201).json({
@@ -61,8 +69,8 @@ router.post("/add-temperature", async (req, res) => {
       );
 
       let deviceInterval = 300; // default interval
-      if (intervalResult.rows.length > 0 && intervalResult.rows[0].intervalseconds) {
-        deviceInterval = intervalResult.rows[0].intervalseconds;
+      if (intervalResult.rows.length > 0 && intervalResult.rows[0].interval) {
+        deviceInterval = intervalResult.rows[0].interval;
       }
 
       return res.status(500).json({
@@ -195,6 +203,37 @@ router.post("/assign-device-to-patient", async (req, res) => {
   } catch (err) {
     console.error("Error assigning device to patient:", err);
     res.status(500).json({ error: "Failed to assign device to patient" });
+  }
+});
+
+router.post("/reset-device", async (req, res) => {
+  const { macAddress } = req.body;
+
+  if (!macAddress) {
+    return res.status(400).json({ error: "Missing macAddress" });
+  }
+
+  try {
+    // Check if row exists first
+    const checkResult = await db.query(
+      "SELECT 1 FROM DevicePatient WHERE MacAddress = $1",
+      [macAddress]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: "Device not found in DevicePatient" });
+    }
+
+    // Delete the row
+    await db.query(
+      "DELETE FROM DevicePatient WHERE MacAddress = $1",
+      [macAddress]
+    );
+
+    res.status(200).json({ message: "DevicePatient row deleted (reset completed)", macAddress });
+  } catch (err) {
+    console.error("Error resetting device:", err);
+    res.status(500).json({ error: "Failed to reset device" });
   }
 });
 
