@@ -175,4 +175,78 @@ router.post("/reset-device", async (req, res) => {
   }
 });
 
+// Delete patient and related data
+router.delete('/:id', async (req, res) => {
+  const userId = req.user?.sub || req.user?.user_id || req.user?.id;
+  const patientId = req.params.id;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
+
+  if (!isUuid(patientId)) {
+    return res.status(400).json({ error: 'Invalid patient ID format' });
+  }
+
+  try {
+    // Verify patient ownership
+    const patientCheck = await db.query(
+      'SELECT 1 FROM Patient WHERE PatientID = $1 AND UserID = $2',
+      [patientId, userId]
+    );
+
+    if (patientCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Patient not found or unauthorized' });
+    }
+
+    // Delete patient; cascades will delete DevicePatient and DeviceTemp rows automatically
+    await db.query(
+      'DELETE FROM Patient WHERE PatientID = $1 AND UserID = $2',
+      [patientId, userId]
+    );
+
+    res.status(200).json({ message: 'Patient and related data deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting patient:', err);
+    res.status(500).json({ error: 'Failed to delete patient' });
+  }
+});
+// Delete patient and related data
+router.delete('/:id', async (req, res) => {
+  const userId = req.user?.sub || req.user?.user_id || req.user?.id;
+  const patientId = req.params.id;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
+
+  if (!isUuid(patientId)) {
+    return res.status(400).json({ error: 'Invalid patient ID format' });
+  }
+
+  try {
+    // Verify patient ownership
+    const patientCheck = await db.query(
+      'SELECT 1 FROM Patient WHERE PatientID = $1 AND UserID = $2',
+      [patientId, userId]
+    );
+
+    if (patientCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Patient not found or unauthorized' });
+    }
+
+    // Delete patient; cascades will delete DevicePatient and DeviceTemp rows automatically
+    await db.query(
+      'DELETE FROM Patient WHERE PatientID = $1 AND UserID = $2',
+      [patientId, userId]
+    );
+
+    res.status(200).json({ message: 'Patient and related data deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting patient:', err);
+    res.status(500).json({ error: 'Failed to delete patient' });
+  }
+});
+
+
 module.exports = router;
