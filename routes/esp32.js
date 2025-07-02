@@ -207,7 +207,10 @@ router.post("/assign-device-to-patient", async (req, res) => {
 });
 
 router.post("/reset-device", async (req, res) => {
-  const { macAddress } = req.body;
+  const { macAddress, reset } = req.body;
+  if (!macAddress || reset !== true) {
+    return res.status(400).json({ error: "Missing macAddress or reset flag not true" });
+  }
 
   if (!macAddress) {
     return res.status(400).json({ error: "Missing macAddress" });
@@ -224,13 +227,12 @@ router.post("/reset-device", async (req, res) => {
       return res.status(404).json({ error: "Device not found in DevicePatient" });
     }
 
-    // Delete the row
     await db.query(
-      "DELETE FROM DevicePatient WHERE MacAddress = $1",
+      "UPDATE DevicePatient SET PatientID = NULL, Reset = false WHERE MacAddress = $1",
       [macAddress]
     );
 
-    res.status(200).json({ message: "DevicePatient row deleted (reset completed)", macAddress });
+    res.status(200).json({ message: "Device reset completed", macAddress });
   } catch (err) {
     console.error("Error resetting device:", err);
     res.status(500).json({ error: "Failed to reset device" });
