@@ -3,11 +3,10 @@ const router = express.Router();
 const db = require("../db");
 const { validate: isUuid } = require("uuid");
 
+// Get all patients for authenticated user
 router.get("/", async (req, res) => {
   const userId = req.user?.sub || req.user?.user_id || req.user?.id;
-  if (!userId) {
-    return res.status(401).json({ error: "User not authenticated" });
-  }
+  if (!userId) return res.status(401).json({ error: "User not authenticated" });
 
   try {
     const result = await db.query(
@@ -21,25 +20,19 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Get individual patient details
 router.get("/:id", async (req, res) => {
   const userId = req.user?.sub || req.user?.user_id || req.user?.id;
-  if (!userId) {
-    return res.status(401).json({ error: "User not authenticated" });
-  }
-
   const { id: patientId } = req.params;
-  if (!isUuid(patientId)) {
-    return res.status(400).json({ error: "Invalid patient ID format" });
-  }
+  if (!userId) return res.status(401).json({ error: "User not authenticated" });
+  if (!isUuid(patientId)) return res.status(400).json({ error: "Invalid patient ID format" });
 
   try {
     const result = await db.query(
       "SELECT * FROM Patient WHERE PatientID = $1 AND UserID = $2",
       [patientId, userId]
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Patient not found" });
-    }
+    if (result.rows.length === 0) return res.status(404).json({ error: "Patient not found" });
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Error fetching patient:", err.message);
@@ -47,7 +40,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Add patient
+// Add a new patient
 router.post("/add", async (req, res) => {
   const userId = req.user?.sub || req.user?.user_id || req.user?.id;
   const { name, age } = req.body;
@@ -67,7 +60,7 @@ router.post("/add", async (req, res) => {
   }
 });
 
-// Assign device to patient
+// Assign a device to a patient
 router.post("/assign-device", async (req, res) => {
   const userId = req.user?.sub || req.user?.user_id || req.user?.id;
   const { patientId, macAddress } = req.body;
@@ -145,7 +138,7 @@ router.post("/set-interval", async (req, res) => {
   }
 });
 
-// Reset device
+// Reset device (unassign patient)
 router.post("/reset-device", async (req, res) => {
   const { macAddress, reset } = req.body;
 
@@ -175,78 +168,44 @@ router.post("/reset-device", async (req, res) => {
   }
 });
 
-// Delete patient and related data
-router.delete('/:id', async (req, res) => {
+// Delete patient: unlink device, delete temps & patient
+router.delete("/:id", async (req, res) => {
   const userId = req.user?.sub || req.user?.user_id || req.user?.id;
   const patientId = req.params.id;
 
-  if (!userId) {
-    return res.status(401).json({ error: 'User not authenticated' });
-  }
-
-  if (!isUuid(patientId)) {
-    return res.status(400).json({ error: 'Invalid patient ID format' });
-  }
+  if (!userId) return res.status(401).json({ error: "User not authenticated" });
+  if (!isUuid(patientId)) return res.status(400).json({ error: "Invalid patient ID format" });
 
   try {
-    // Verify patient ownership
     const patientCheck = await db.query(
-      'SELECT 1 FROM Patient WHERE PatientID = $1 AND UserID = $2',
+      "SELECT 1 FROM Patient WHERE PatientID = $1 AND UserID = $2",
       [patientId, userId]
     );
 
     if (patientCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Patient not found or unauthorized' });
+      return res.status(404).json({ error: "Patient not found or unauthorized" });
     }
 
-    // Delete patient; cascades will delete DevicePatient and DeviceTemp rows automatically
+    // Unlink device: set PatientID = NULL
     await db.query(
-      'DELETE FROM Patient WHERE PatientID = $1 AND UserID = $2',
+      "UPDATE DevicePatient SET PatientID = NULL WHERE PatientID = $1",
+      [patientId]
+    );
+
+    // Delete related temperature records
+    await db.query("DELETE FROM DeviceTemp WHERE PatientID = $1", [patientId]);
+
+    // Delete patient
+    await db.query(
+      "DELETE FROM Patient WHERE PatientID = $1 AND UserID = $2",
       [patientId, userId]
     );
 
-    res.status(200).json({ message: 'Patient and related data deleted successfully' });
+    res.status(200).json({ message: "Patient deleted and device unlinked successfully" });
   } catch (err) {
-    console.error('Error deleting patient:', err);
-    res.status(500).json({ error: 'Failed to delete patient' });
+    console.error("Error deleting patient:", err);
+    res.status(500).json({ error: "Failed to delete patient" });
   }
 });
-// Delete patient and related data
-router.delete('/:id', async (req, res) => {
-  const userId = req.user?.sub || req.user?.user_id || req.user?.id;
-  const patientId = req.params.id;
-
-  if (!userId) {
-    return res.status(401).json({ error: 'User not authenticated' });
-  }
-
-  if (!isUuid(patientId)) {
-    return res.status(400).json({ error: 'Invalid patient ID format' });
-  }
-
-  try {
-    // Verify patient ownership
-    const patientCheck = await db.query(
-      'SELECT 1 FROM Patient WHERE PatientID = $1 AND UserID = $2',
-      [patientId, userId]
-    );
-
-    if (patientCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Patient not found or unauthorized' });
-    }
-
-    // Delete patient; cascades will delete DevicePatient and DeviceTemp rows automatically
-    await db.query(
-      'DELETE FROM Patient WHERE PatientID = $1 AND UserID = $2',
-      [patientId, userId]
-    );
-
-    res.status(200).json({ message: 'Patient and related data deleted successfully' });
-  } catch (err) {
-    console.error('Error deleting patient:', err);
-    res.status(500).json({ error: 'Failed to delete patient' });
-  }
-});
-
 
 module.exports = router;
