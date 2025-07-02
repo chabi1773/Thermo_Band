@@ -1,38 +1,18 @@
 const express = require("express");
-const jwt = require("jsonwebtoken");
 const router = express.Router();
 const db = require("../db");
 const { validate: isUuid } = require("uuid");
 
-const getUserIdFromToken = (req) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return null;
-
-  const token = authHeader.split(" ")[1];
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return decoded.sub || decoded.user_id || decoded.id;
-  } catch {
-    return null;
-  }
-};
-
-// Middleware to apply auth to all routes below
-router.use((req, res, next) => {
-  const userId = getUserIdFromToken(req);
-  if (!userId) {
-    return res.status(401).json({ error: "Unauthorized or invalid token" });
-  }
-  req.userId = userId;
-  next();
-});
-
-// GET all patients
 router.get("/", async (req, res) => {
+  const userId = req.user?.sub || req.user?.user_id || req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: "User not authenticated" });
+  }
+
   try {
     const result = await db.query(
       "SELECT PatientID, Name, Age FROM Patient WHERE UserID = $1",
-      [req.userId]
+      [userId]
     );
     res.json(result.rows);
   } catch (err) {
@@ -41,8 +21,12 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET patient by ID
 router.get("/:id", async (req, res) => {
+  const userId = req.user?.sub || req.user?.user_id || req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: "User not authenticated" });
+  }
+
   const { id: patientId } = req.params;
   if (!isUuid(patientId)) {
     return res.status(400).json({ error: "Invalid patient ID format" });
@@ -51,7 +35,7 @@ router.get("/:id", async (req, res) => {
   try {
     const result = await db.query(
       "SELECT * FROM Patient WHERE PatientID = $1 AND UserID = $2",
-      [patientId, req.userId]
+      [patientId, userId]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Patient not found" });
@@ -65,15 +49,16 @@ router.get("/:id", async (req, res) => {
 
 // Add patient
 router.post("/add", async (req, res) => {
+  const userId = req.user?.sub || req.user?.user_id || req.user?.id;
   const { name, age } = req.body;
-  if (!name || !age) {
+  if (!userId || !name || !age) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
     const result = await db.query(
       "INSERT INTO Patient (UserID, Name, Age) VALUES ($1, $2, $3) RETURNING *",
-      [req.userId, name, age]
+      [userId, name, age]
     );
     res.status(201).json({ message: "Patient added", patient: result.rows[0] });
   } catch (err) {
@@ -84,16 +69,17 @@ router.post("/add", async (req, res) => {
 
 // Assign device to patient
 router.post("/assign-device", async (req, res) => {
+  const userId = req.user?.sub || req.user?.user_id || req.user?.id;
   const { patientId, macAddress } = req.body;
 
-  if (!patientId || !macAddress) {
+  if (!userId || !patientId || !macAddress) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
     const patientCheck = await db.query(
       "SELECT 1 FROM Patient WHERE PatientID = $1 AND UserID = $2",
-      [patientId, req.userId]
+      [patientId, userId]
     );
     if (patientCheck.rows.length === 0) {
       return res.status(404).json({ error: "Patient not found or unauthorized" });
