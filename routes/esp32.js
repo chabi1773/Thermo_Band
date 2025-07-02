@@ -35,7 +35,7 @@ router.post("/add-temperature", async (req, res) => {
 
     // Fetch interval from DevicePatient table
     const intervalResult = await db.query(
-      "SELECT IntervalSeconds FROM DevicePatient WHERE MacAddress = $1",
+      "SELECT Interval FROM DevicePatient WHERE MacAddress = $1",
       [macAddress]
     );
 
@@ -56,7 +56,7 @@ router.post("/add-temperature", async (req, res) => {
     // Try to still fetch interval if possible
     try {
       const intervalResult = await db.query(
-        "SELECT IntervalSeconds FROM DevicePatient WHERE MacAddress = $1",
+        "SELECT Interval FROM DevicePatient WHERE MacAddress = $1",
         [macAddress]
       );
 
@@ -123,7 +123,7 @@ router.post("/set-interval", async (req, res) => {
 
   try {
     const result = await db.query(
-      "UPDATE DevicePatient SET IntervalSeconds = $1 WHERE MacAddress = $2 RETURNING *",
+      "UPDATE DevicePatient SET Interval = $1 WHERE MacAddress = $2 RETURNING *",
       [interval, macAddress]
     );
 
