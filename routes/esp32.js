@@ -103,4 +103,16 @@ router.post("/register-device", async (req, res) => {
   }
 });
 
+router.get("/unassigned-devices", async (req, res) => {
+  try {
+    const result = await db.query(
+      "SELECT MacAddress FROM DevicePatient WHERE PatientID IS NULL"
+    );
+    res.json(result.rows); // returns array of { macaddress: 'xx:xx:xx...' }
+  } catch (err) {
+    console.error("Error fetching unassigned devices:", err);
+    res.status(500).json({ error: "Failed to fetch unassigned devices" });
+  }
+});
+
 module.exports = router;
