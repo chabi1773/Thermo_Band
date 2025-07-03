@@ -9,7 +9,7 @@ router.post("/add-temperature", async (req, res) => {
   }
 
   try {
-    // 1) Check if device exists and get reset status first
+    // 1) Check if device exists and get interval/reset status
     const deviceStatusResult = await db.query(
       "SELECT Interval, Reset FROM DevicePatient WHERE MacAddress = $1",
       [macAddress]
@@ -24,53 +24,60 @@ router.post("/add-temperature", async (req, res) => {
     if (deviceStatusResult.rows[0].interval) deviceInterval = deviceStatusResult.rows[0].interval;
     if (deviceStatusResult.rows[0].reset !== undefined) resetStatus = deviceStatusResult.rows[0].reset;
 
-    // 2) If Reset is true, delete related data immediately, then respond
-    if (resetStatus === true) {
-      const patientRes = await db.query(
-        `SELECT PatientID FROM DevicePatient WHERE MacAddress = $1 AND Reset = TRUE`,
-        [macAddress]
-      );
-
-      if (patientRes.rows.length > 0) {
-        const patientIds = patientRes.rows.map(row => row.patientid);
-
-        //await db.query(
-          //`DELETE FROM Patient WHERE PatientID = ANY($1::uuid[])`,
-          //[patientIds]
-        //);
-
-        await db.query(
-          `DELETE FROM DevicePatient WHERE MacAddress = $1 AND Reset = TRUE`,
-          [macAddress]
-        );
-
-        console.log(`Deleted reset data for device ${macAddress}`);
-      }
-
-      return res.status(200).json({
-        message: "Device reset detected; all related data cleared. Please re-register device.",
-        reset: true,
-        interval: deviceInterval,
-      });
-    }
-
-    // 3) If Reset is false, proceed to log temperature normally
+    // 2) Log temperature no matter what
     const result = await db.query(
       "SELECT * FROM log_device_temperature($1, $2);",
       [macAddress, temperature]
     );
 
+    // 3) Send acknowledgment with reset status
     res.status(201).json({
       message: "Temperature recorded",
       tempRecord: result.rows[0],
-      reset: false,
+      reset: resetStatus,
       interval: deviceInterval,
     });
+
+    // 4) After sending response, if reset true, delete all related data async
+    if (resetStatus === true) {
+      try {
+        const patientRes = await db.query(
+          `SELECT PatientID FROM DevicePatient WHERE MacAddress = $1`,
+          [macAddress]
+        );
+
+        if (patientRes.rows.length > 0) {
+          const patientIds = patientRes.rows.map(row => row.patientid);
+
+          // Delete from DeviceTemp first (FK references Patient)
+          await db.query(
+            `DELETE FROM DeviceTemp WHERE PatientID = ANY($1::uuid[])`,
+            [patientIds]
+          );
+
+          // Delete Patients
+          await db.query(
+            `DELETE FROM Patient WHERE PatientID = ANY($1::uuid[])`,
+            [patientIds]
+          );
+        }
+
+        // Delete DevicePatient entry
+        await db.query(
+          `DELETE FROM DevicePatient WHERE MacAddress = $1`,
+          [macAddress]
+        );
+
+        console.log(`Deleted all data related to reset device ${macAddress}`);
+      } catch (deleteErr) {
+        console.error("Error deleting reset device data after acknowledgment:", deleteErr);
+      }
+    }
 
   } catch (err) {
     console.error("Error adding temperature:", err);
 
-    // Attempt to get reset status and interval on error to return meaningful info
+    // On error, try to get reset and interval to respond meaningfully
     try {
       const deviceStatusResult = await db.query(
         "SELECT Interval, Reset FROM DevicePatient WHERE MacAddress = $1",
@@ -97,55 +104,6 @@ router.post("/add-temperature", async (req, res) => {
         interval: 300,
       });
     }
-  }
-});
-
-
-router.post("/register-device", async (req, res) => {
-  const { uid, macAddress } = req.body;
-
-  if (!uid || !macAddress) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-
-  try {
-    const result = await db.query(
-      "SELECT * FROM assign_device_to_user($1, $2);",
-      [macAddress, uid]
-    );
-
-    let msg = "Device Registered";
-    if (result.rows[0].assign_device_to_user === 1) {
-      msg = "Device already registered";
-    } else if (result.rows[0].assign_device_to_user === -1) {
-      msg = "Device belongs to another user";
-    }
-
-    res.status(201).json({
-      message: msg,
-      DeviceRegister: result.rows[0],
-      reset: false,
-      interval: 300,
-    });
-  } catch (err) {
-    console.error("Error registering device:", err);
-    res.status(500).json({
-      error: "Failed to register device",
-      reset: false,
-      interval: 300,
-    });
-  }
-});
-
-router.get("/unassigned-devices", async (req, res) => {
-  try {
-    const result = await db.query(
-      "SELECT MacAddress FROM DevicePatient WHERE PatientID IS NULL"
-    );
-    res.json(result.rows); // returns array of { macaddress: 'xx:xx:xx...' }
-  } catch (err) {
-    console.error("Error fetching unassigned devices:", err);
-    res.status(500).json({ error: "Failed to fetch unassigned devices" });
   }
 });
 
