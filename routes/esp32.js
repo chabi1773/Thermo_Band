@@ -77,7 +77,7 @@ router.post("/add-temperature", async (req, res) => {
             //`DELETE FROM Patient WHERE PatientID = ANY($1::uuid[])`,
             //[patientIds]
           //);
-        //}
+        }
 
         // Delete DevicePatient entry
         await db.query(
