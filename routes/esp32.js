@@ -34,10 +34,10 @@ router.post("/add-temperature", async (req, res) => {
       if (patientRes.rows.length > 0) {
         const patientIds = patientRes.rows.map(row => row.patientid);
 
-        await db.query(
-          `DELETE FROM Patient WHERE PatientID = ANY($1::uuid[])`,
-          [patientIds]
-        );
+        //await db.query(
+          //`DELETE FROM Patient WHERE PatientID = ANY($1::uuid[])`,
+          //[patientIds]
+        //);
 
         await db.query(
           `DELETE FROM DevicePatient WHERE MacAddress = $1 AND Reset = TRUE`,
