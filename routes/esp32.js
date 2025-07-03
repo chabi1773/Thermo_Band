@@ -23,38 +23,76 @@ router.post("/add-temperature", async (req, res) => {
       [macAddress, temperature]
     );
 
-    const intervalResult = await db.query(
-      "SELECT Interval FROM DevicePatient WHERE MacAddress = $1",
+    const deviceStatusResult = await db.query(
+      "SELECT Interval, Reset FROM DevicePatient WHERE MacAddress = $1",
       [macAddress]
     );
 
     let deviceInterval = 300;
-    if (intervalResult.rows.length > 0 && intervalResult.rows[0].interval) {
-      deviceInterval = intervalResult.rows[0].interval;
+    let resetStatus = false;
+
+    if (deviceStatusResult.rows.length > 0) {
+      if (deviceStatusResult.rows[0].interval) deviceInterval = deviceStatusResult.rows[0].interval;
+      if (deviceStatusResult.rows[0].reset !== undefined) resetStatus = deviceStatusResult.rows[0].reset;
     }
 
+    // Send response immediately
     res.status(201).json({
       message: "Temperature recorded",
       tempRecord: result.rows[0],
-      reset: false,
+      reset: resetStatus,
       interval: deviceInterval,
     });
+
+    // Async deletion if reset = true
+    if (resetStatus === true) {
+      (async () => {
+        try {
+          const patientRes = await db.query(
+            `SELECT PatientID FROM DevicePatient WHERE MacAddress = $1 AND Reset = TRUE`,
+            [macAddress]
+          );
+
+          if (patientRes.rows.length > 0) {
+            const patientIds = patientRes.rows.map(row => row.patientid);
+
+            await db.query(
+              `DELETE FROM Patient WHERE PatientID = ANY($1::uuid[])`,
+              [patientIds]
+            );
+
+            await db.query(
+              `DELETE FROM DevicePatient WHERE MacAddress = $1 AND Reset = TRUE`,
+              [macAddress]
+            );
+
+            console.log(`Deleted reset data for device ${macAddress}`);
+          }
+        } catch (delErr) {
+          console.error(`Failed to delete reset data for device ${macAddress}:`, delErr);
+        }
+      })();
+    }
   } catch (err) {
     console.error("Error adding temperature:", err);
+
     try {
-      const intervalResult = await db.query(
-        "SELECT Interval FROM DevicePatient WHERE MacAddress = $1",
+      const deviceStatusResult = await db.query(
+        "SELECT Interval, Reset FROM DevicePatient WHERE MacAddress = $1",
         [macAddress]
       );
 
       let deviceInterval = 300;
-      if (intervalResult.rows.length > 0 && intervalResult.rows[0].interval) {
-        deviceInterval = intervalResult.rows[0].interval;
+      let resetStatus = false;
+
+      if (deviceStatusResult.rows.length > 0) {
+        if (deviceStatusResult.rows[0].interval) deviceInterval = deviceStatusResult.rows[0].interval;
+        if (deviceStatusResult.rows[0].reset !== undefined) resetStatus = deviceStatusResult.rows[0].reset;
       }
 
       return res.status(500).json({
         error: "Failed to add temperature",
-        reset: false,
+        reset: resetStatus,
         interval: deviceInterval,
       });
     } catch {
@@ -66,6 +104,7 @@ router.post("/add-temperature", async (req, res) => {
     }
   }
 });
+
 
 router.post("/register-device", async (req, res) => {
   const { uid, macAddress } = req.body;
