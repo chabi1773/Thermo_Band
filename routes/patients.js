@@ -140,33 +140,25 @@ router.post("/set-interval", async (req, res) => {
 
 // Reset device (unassign patient)
 router.post("/reset-device", async (req, res) => {
-  const { macAddress, reset } = req.body;
+  const { macAddress } = req.body;
 
-  if (!macAddress || reset !== true) {
-    return res.status(400).json({ error: "Missing macAddress or reset flag not true" });
+  if (!macAddress) {
+    return res.status(400).json({ error: "Missing macAddress" });
   }
 
   try {
-    const checkResult = await db.query(
-      "SELECT 1 FROM DevicePatient WHERE MacAddress = $1",
-      [macAddress]
-    );
-
-    if (checkResult.rows.length === 0) {
-      return res.status(404).json({ error: "Device not found in DevicePatient" });
-    }
-
     await db.query(
-      "UPDATE DevicePatient SET PatientID = NULL, Reset = false WHERE MacAddress = $1",
+      "UPDATE DevicePatient SET Reset = true WHERE MacAddress = $1",
       [macAddress]
     );
 
-    res.status(200).json({ message: "Device reset completed", macAddress });
+    res.status(200).json({ message: "Device reset flag set to true", macAddress });
   } catch (err) {
     console.error("Error resetting device:", err);
     res.status(500).json({ error: "Failed to reset device" });
   }
 });
+
 
 // Delete patient: unlink device, delete temps & patient
 router.delete("/:id", async (req, res) => {
