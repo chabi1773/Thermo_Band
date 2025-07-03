@@ -85,7 +85,7 @@ router.post("/add-temperature", async (req, res) => {
           [macAddress]
         );
 
-        console.log(`Device Reset Succesfull: ${macAddress}`);
+        console.log(` Deleted all data related to reset device ${macAddress} ⁠`);
       } catch (deleteErr) {
         console.error("Error deleting reset device data after acknowledgment:", deleteErr);
       }
