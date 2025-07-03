@@ -11,19 +11,19 @@ const esp32Router = require("./routes/esp32");
 
 const app = express();
 
-//app.use(cors());
-const allowedOrigins = ['https://thermo-band-fe.vercel.app'];
+app.use(cors());
+//const allowedOrigins = ['https://thermo-band-fe.vercel.app'];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true, // allows cookies, auth headers like Authorization
-}));
+//app.use(cors({
+//  origin: function (origin, callback) {
+//    if (!origin || allowedOrigins.includes(origin)) {
+//      callback(null, true);
+//    } else {
+ //     callback(new Error('Not allowed by CORS'));
+//    }
+//  },
+//  credentials: true, // allows cookies, auth headers like Authorization
+//}));
 //added above code
 
 app.use(express.json());
