@@ -9,73 +9,68 @@ router.post("/add-temperature", async (req, res) => {
   }
 
   try {
-    const deviceCheck = await db.query(
-      "SELECT 1 FROM DevicePatient WHERE MacAddress = $1",
-      [macAddress]
-    );
-
-    if (deviceCheck.rows.length === 0) {
-      return res.status(404).json({ error: "DevicePatient row not found — please reassign device." });
-    }
-
-    const result = await db.query(
-      "SELECT * FROM log_device_temperature($1, $2);",
-      [macAddress, temperature]
-    );
-
+    // 1) Check if device exists and get reset status first
     const deviceStatusResult = await db.query(
       "SELECT Interval, Reset FROM DevicePatient WHERE MacAddress = $1",
       [macAddress]
     );
 
-    let deviceInterval = 300;
-    let resetStatus = false;
-
-    if (deviceStatusResult.rows.length > 0) {
-      if (deviceStatusResult.rows[0].interval) deviceInterval = deviceStatusResult.rows[0].interval;
-      if (deviceStatusResult.rows[0].reset !== undefined) resetStatus = deviceStatusResult.rows[0].reset;
+    if (deviceStatusResult.rows.length === 0) {
+      return res.status(404).json({ error: "DevicePatient row not found — please reassign device." });
     }
 
-    // Send response immediately
+    let deviceInterval = 300;
+    let resetStatus = false;
+    if (deviceStatusResult.rows[0].interval) deviceInterval = deviceStatusResult.rows[0].interval;
+    if (deviceStatusResult.rows[0].reset !== undefined) resetStatus = deviceStatusResult.rows[0].reset;
+
+    // 2) If Reset is true, delete related data immediately, then respond
+    if (resetStatus === true) {
+      const patientRes = await db.query(
+        `SELECT PatientID FROM DevicePatient WHERE MacAddress = $1 AND Reset = TRUE`,
+        [macAddress]
+      );
+
+      if (patientRes.rows.length > 0) {
+        const patientIds = patientRes.rows.map(row => row.patientid);
+
+        await db.query(
+          `DELETE FROM Patient WHERE PatientID = ANY($1::uuid[])`,
+          [patientIds]
+        );
+
+        await db.query(
+          `DELETE FROM DevicePatient WHERE MacAddress = $1 AND Reset = TRUE`,
+          [macAddress]
+        );
+
+        console.log(`Deleted reset data for device ${macAddress}`);
+      }
+
+      return res.status(200).json({
+        message: "Device reset detected; all related data cleared. Please re-register device.",
+        reset: true,
+        interval: deviceInterval,
+      });
+    }
+
+    // 3) If Reset is false, proceed to log temperature normally
+    const result = await db.query(
+      "SELECT * FROM log_device_temperature($1, $2);",
+      [macAddress, temperature]
+    );
+
     res.status(201).json({
       message: "Temperature recorded",
       tempRecord: result.rows[0],
-      reset: resetStatus,
+      reset: false,
       interval: deviceInterval,
     });
 
-    // Async deletion if reset = true
-    if (resetStatus === true) {
-      (async () => {
-        try {
-          const patientRes = await db.query(
-            `SELECT PatientID FROM DevicePatient WHERE MacAddress = $1 AND Reset = TRUE`,
-            [macAddress]
-          );
-
-          if (patientRes.rows.length > 0) {
-            const patientIds = patientRes.rows.map(row => row.patientid);
-
-            await db.query(
-              `DELETE FROM Patient WHERE PatientID = ANY($1::uuid[])`,
-              [patientIds]
-            );
-
-            await db.query(
-              `DELETE FROM DevicePatient WHERE MacAddress = $1 AND Reset = TRUE`,
-              [macAddress]
-            );
-
-            console.log(`Deleted reset data for device ${macAddress}`);
-          }
-        } catch (delErr) {
-          console.error(`Failed to delete reset data for device ${macAddress}:`, delErr);
-        }
-      })();
-    }
   } catch (err) {
     console.error("Error adding temperature:", err);
 
+    // Attempt to get reset status and interval on error to return meaningful info
     try {
       const deviceStatusResult = await db.query(
         "SELECT Interval, Reset FROM DevicePatient WHERE MacAddress = $1",
