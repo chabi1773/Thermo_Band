@@ -124,4 +124,52 @@ router.post("/add-temperature", async (req, res) => {
   }
 });
 
+router.post("/register-device", async (req, res) => {
+  const { uid, macAddress } = req.body;
+
+  if (!uid || !macAddress) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    const result = await db.query(
+      "SELECT * FROM assign_device_to_user($1, $2);",
+      [macAddress, uid]
+    );
+
+    let msg = "Device Registered";
+    if (result.rows[0].assign_device_to_user === 1) {
+      msg = "Device already registered";
+    } else if (result.rows[0].assign_device_to_user === -1) {
+      msg = "Device belongs to another user";
+    }
+
+    res.status(201).json({
+      message: msg,
+      DeviceRegister: result.rows[0],
+      reset: false,
+      interval: 300,
+    });
+  } catch (err) {
+    console.error("Error registering device:", err);
+    res.status(500).json({
+      error: "Failed to register device",
+      reset: false,
+      interval: 300,
+    });
+  }
+});
+
+router.get("/unassigned-devices", async (req, res) => {
+  try {
+    const result = await db.query(
+      "SELECT MacAddress FROM DevicePatient WHERE PatientID IS NULL"
+    );
+    res.json(result.rows); // returns array of { macaddress: 'xx:xx:xx...' }
+  } catch (err) {
+    console.error("Error fetching unassigned devices:", err);
+    res.status(500).json({ error: "Failed to fetch unassigned devices" });
+  }
+});
+
 module.exports = router;
