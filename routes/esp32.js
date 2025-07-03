@@ -2,10 +2,24 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 
+// Store last accepted timestamp for each macAddress
+const lastRequestTimestamps = new Map();
+
 router.post("/add-temperature", async (req, res) => {
   const { macAddress, temperature } = req.body;
+
   if (macAddress === undefined || temperature === undefined) {
     return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  const now = Date.now();
+  const lastTime = lastRequestTimestamps.get(macAddress);
+
+  // Throttle requests within 10 seconds
+  if (lastTime && (now - lastTime) < 10 * 1000) {
+    return res.status(429).json({
+      error: "Too many requests. Please wait before sending another temperature."
+    });
   }
 
   try {
@@ -29,6 +43,9 @@ router.post("/add-temperature", async (req, res) => {
       "SELECT * FROM log_device_temperature($1, $2);",
       [macAddress, temperature]
     );
+
+    // Update last successful timestamp to throttle future requests
+    lastRequestTimestamps.set(macAddress, Date.now());
 
     // 3) Send acknowledgment with reset status
     res.status(201).json({
