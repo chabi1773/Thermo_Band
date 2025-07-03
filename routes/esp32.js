@@ -67,17 +67,17 @@ router.post("/add-temperature", async (req, res) => {
           const patientIds = patientRes.rows.map(row => row.patientid);
 
           // Delete from DeviceTemp first (FK references Patient)
-          await db.query(
-            `DELETE FROM DeviceTemp WHERE PatientID = ANY($1::uuid[])`,
-            [patientIds]
-          );
+          //await db.query(
+            //`DELETE FROM DeviceTemp WHERE PatientID = ANY($1::uuid[])`,
+            //[patientIds]
+          //);
 
           // Delete Patients
-          await db.query(
-            `DELETE FROM Patient WHERE PatientID = ANY($1::uuid[])`,
-            [patientIds]
-          );
-        }
+          //await db.query(
+            //`DELETE FROM Patient WHERE PatientID = ANY($1::uuid[])`,
+            //[patientIds]
+          //);
+        //}
 
         // Delete DevicePatient entry
         await db.query(
@@ -85,7 +85,7 @@ router.post("/add-temperature", async (req, res) => {
           [macAddress]
         );
 
-        console.log(`Deleted all data related to reset device ${macAddress}`);
+        console.log(`Device Reset Succesfull: ${macAddress}`);
       } catch (deleteErr) {
         console.error("Error deleting reset device data after acknowledgment:", deleteErr);
       }
